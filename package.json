@@ -1,0 +1,28 @@
+{
+  "name": "manualarr",
+  "version": "0.1.0",
+  "private": false,
+  "license": "MIT",
+  "description": "Manual music sideload bridge for Lidarr/Navidrome stacks. Drop FLAC you grabbed by hand, get it into the library and Lidarr.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "music-metadata": "^11.0.0",
+    "next": "^16.2.6",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.2.2",
+    "@types/node": "^25.5.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.0",
+    "tailwindcss": "^4.2.2",
+    "typescript": "^5.9.0"
+  }
+}

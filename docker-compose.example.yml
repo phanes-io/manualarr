@@ -1,0 +1,35 @@
+services:
+  manualarr:
+    # Use the published image…
+    image: ghcr.io/phanes-io/manualarr:latest
+    # …or build locally:
+    # build: .
+    container_name: manualarr
+    ports:
+      - "8275:3000"
+    environment:
+      LIDARR_URL: http://lidarr:8686
+      LIDARR_API_KEY: ${LIDARR_API_KEY}
+      # Path INSIDE this container — must be the same library Lidarr/Navidrome use.
+      MUSIC_LIBRARY_PATH: /music
+      STAGING_PATH: /staging
+      ALBUM_FOLDER_FORMAT: "({year}) {album}"
+      TRACK_FILE_FORMAT: "{track} {title}.{ext}"
+      # Optional Navidrome rescan after each ingest:
+      NAVIDROME_URL: http://navidrome:4533
+      NAVIDROME_USER: ${NAVIDROME_USER}
+      NAVIDROME_PASS: ${NAVIDROME_PASS}
+    volumes:
+      # Mount the SAME music library share Lidarr writes to.
+      - /mnt/data/media/libary/music:/music
+      # Staging can live anywhere with enough scratch space (ideally same filesystem as /music for fast moves).
+      - /mnt/data/media/downloads/manualarr:/staging
+    # Match your NFS ownership (PUID/PGID) instead of running as root:
+    # user: "1000:1000"
+    restart: unless-stopped
+    networks: [media]
+
+networks:
+  media:
+    external: true
+    name: stack_media

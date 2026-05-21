@@ -1,0 +1,118 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-accent: #8b5cf6;
+}
+
+html {
+  touch-action: manipulation;
+  color-scheme: dark;
+}
+
+body {
+  background: #09090b;
+  color: #f4f4f5;
+  background-image:
+    radial-gradient(60rem 60rem at 80% -10%, rgba(139, 92, 246, 0.10), transparent 60%),
+    radial-gradient(50rem 50rem at -10% 110%, rgba(56, 189, 248, 0.06), transparent 55%);
+  background-attachment: fixed;
+}
+
+/* Thin styled scrollbar */
+.scrollbar-styled { scrollbar-width: thin; scrollbar-color: #3f3f46 transparent; }
+.scrollbar-styled::-webkit-scrollbar { width: 6px; }
+.scrollbar-styled::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
+
+/* ── Surfaces ── */
+.glass-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+}
+.glass-card-hover { transition: background 0.2s, border-color 0.2s, box-shadow 0.2s; }
+.glass-card-hover:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+}
+
+/* ── Drop zone ── */
+.drop-zone {
+  border: 1.5px dashed rgba(255, 255, 255, 0.10);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.02);
+  transition: all 0.2s;
+  cursor: pointer;
+}
+.drop-zone:hover:not(.drop-zone-disabled) {
+  border-color: rgba(139, 92, 246, 0.45);
+  background: rgba(139, 92, 246, 0.05);
+}
+.drop-zone-active {
+  border-color: rgba(139, 92, 246, 0.7);
+  background: rgba(139, 92, 246, 0.08);
+}
+.drop-zone-disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Inputs ── */
+.input-glass {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  color: #f4f4f5;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.input-glass::placeholder { color: #52525b; }
+.input-glass:focus {
+  outline: none;
+  border-color: rgba(139, 92, 246, 0.5);
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.12);
+}
+
+/* ── Buttons ── */
+.btn {
+  border-radius: 10px;
+  font-weight: 500;
+  transition: all 0.15s;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-primary {
+  background: linear-gradient(180deg, #8b5cf6, #7c3aed);
+  color: white;
+  box-shadow: 0 2px 16px rgba(124, 58, 237, 0.35);
+}
+.btn-primary:not(:disabled):hover { filter: brightness(1.08); }
+.btn-ghost {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #e4e4e7;
+}
+.btn-ghost:not(:disabled):hover { background: rgba(255, 255, 255, 0.08); }
+
+/* ── Pills / segmented ── */
+.seg {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 3px;
+}
+.seg-btn {
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #a1a1aa;
+  transition: all 0.15s;
+  cursor: pointer;
+}
+.seg-btn-active {
+  background: rgba(139, 92, 246, 0.18);
+  color: #f4f4f5;
+  box-shadow: inset 0 0 0 1px rgba(139, 92, 246, 0.35);
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 0.8s linear infinite; }
