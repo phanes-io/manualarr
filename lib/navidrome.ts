@@ -1,6 +1,7 @@
 import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import { config } from "./config";
+import { withRetry, RetryableError } from "./retry";
 
 /**
  * Trigger a Navidrome library rescan via the Subsonic API.
@@ -20,10 +21,13 @@ export async function triggerScan(): Promise<string> {
     f: "json",
   });
   try {
-    const res = await fetch(`${config.navidrome.url}/rest/startScan?${params}`, { cache: "no-store" });
-    if (!res.ok) return `failed (${res.status})`;
-    const data = (await res.json()) as { "subsonic-response"?: { status?: string } };
-    return data["subsonic-response"]?.status === "ok" ? "scan triggered" : "unexpected response";
+    return await withRetry(async () => {
+      const res = await fetch(`${config.navidrome.url}/rest/startScan?${params}`, { cache: "no-store" });
+      if (res.status >= 500) throw new RetryableError(`failed (${res.status})`);
+      if (!res.ok) return `failed (${res.status})`;
+      const data = (await res.json()) as { "subsonic-response"?: { status?: string } };
+      return data["subsonic-response"]?.status === "ok" ? "scan triggered" : "unexpected response";
+    });
   } catch (e) {
     return `error: ${(e as Error).message}`;
   }

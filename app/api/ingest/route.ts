@@ -51,6 +51,17 @@ export async function POST(req: NextRequest) {
     });
     warnings.push(...placed.warnings);
 
+    // Nothing landed (all staged files missing) — keep staging for a retry.
+    if (placed.placed === 0) {
+      return NextResponse.json(
+        { error: "No files were placed — staged files missing. Staging kept for retry.", warnings },
+        { status: 500 },
+      );
+    }
+    if (placed.placed < body.tracks.length) {
+      warnings.push(`only ${placed.placed}/${body.tracks.length} tracks placed`);
+    }
+
     // ── Lidarr ──
     let lidarrMsg = "skipped (library-only mode)";
     if (body.mode === "lidarr") {

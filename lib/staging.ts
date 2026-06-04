@@ -209,6 +209,30 @@ export async function cleanupStaging(id: string): Promise<void> {
   await rm(stagingDir(id), { recursive: true, force: true });
 }
 
+/**
+ * Best-effort GC: delete staging dirs older than maxAgeMs. Failed uploads/ingests
+ * leave dirs behind otherwise, slowly filling the staging volume. Called
+ * opportunistically on upload; errors are non-fatal.
+ */
+export async function sweepStaging(maxAgeMs: number): Promise<number> {
+  const root = config.library.staging;
+  const now = Date.now();
+  let removed = 0;
+  for (const name of await readdir(root).catch(() => [])) {
+    const dir = join(root, name);
+    try {
+      const s = await stat(dir);
+      if (s.isDirectory() && now - s.mtimeMs > maxAgeMs) {
+        await rm(dir, { recursive: true, force: true });
+        removed++;
+      }
+    } catch {
+      // ignore races / permission issues on individual dirs
+    }
+  }
+  return removed;
+}
+
 /** Strip path separators and characters that break filesystems. */
 export function sanitizeFilename(name: string): string {
   return name

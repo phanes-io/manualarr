@@ -1,24 +1,28 @@
 import "server-only";
 import { config, assertLidarrConfigured } from "./config";
+import { withRetry, RetryableError } from "./retry";
 import type { LidarrArtistMatch } from "./types";
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   assertLidarrConfigured();
-  const res = await fetch(`${config.lidarr.url}/api/v1${path}`, {
-    ...init,
-    headers: {
-      "X-Api-Key": config.lidarr.apiKey,
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-    cache: "no-store",
+  return withRetry(async () => {
+    const res = await fetch(`${config.lidarr.url}/api/v1${path}`, {
+      ...init,
+      headers: {
+        "X-Api-Key": config.lidarr.apiKey,
+        "Content-Type": "application/json",
+        ...(init?.headers ?? {}),
+      },
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      const msg = `Lidarr ${path} → ${res.status} ${res.statusText} ${body.slice(0, 200)}`;
+      throw res.status >= 500 ? new RetryableError(msg) : new Error(msg);
+    }
+    if (res.status === 204) return undefined as T;
+    return (await res.json()) as T;
   });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`Lidarr ${path} → ${res.status} ${res.statusText} ${body.slice(0, 200)}`);
-  }
-  if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
 }
 
 type RawArtist = {
