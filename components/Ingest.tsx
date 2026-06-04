@@ -2,7 +2,17 @@
 import { useCallback, useRef, useState } from "react";
 import type { IngestMode, IngestResult, LidarrArtistMatch, ParsedTrack, ParsedUpload } from "@/lib/types";
 import { ArtistSearch } from "./ArtistSearch";
-import { UploadIcon, SpinnerIcon, CheckIcon, XIcon, FolderIcon, MusicIcon } from "./Icons";
+import {
+  UploadIcon,
+  SpinnerIcon,
+  CheckIcon,
+  XIcon,
+  FolderIcon,
+  MusicIcon,
+  ChevronUpIcon,
+  ChevronDownIcon,
+  ImageIcon,
+} from "./Icons";
 
 type Step = "idle" | "uploading" | "review" | "ingesting" | "done";
 
@@ -29,7 +39,11 @@ export function Ingest() {
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<IngestResult | null>(null);
+  const [uploadPct, setUploadPct] = useState(0);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [coverBust, setCoverBust] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
 
   const reset = () => {
     setStep("idle");
@@ -43,25 +57,45 @@ export function Ingest() {
     setError(null);
     setWriteTags(false);
     setMode("lidarr");
+    setUploadPct(0);
+    setConfirmDiscard(false);
+    setCoverBust(0);
   };
 
   const upload = useCallback(async (files: FileList | File[]) => {
     const arr = Array.from(files);
     if (arr.length === 0) return;
     setError(null);
+    setUploadPct(0);
     setStep("uploading");
     const fd = new FormData();
     for (const f of arr) fd.append("files", f);
     try {
-      const res = await fetch("/api/upload", { method: "POST", body: fd });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Upload failed");
-      const p = data as ParsedUpload;
-      setParsed(p);
-      setArtist(p.artist);
-      setAlbum(p.album);
-      setYear(p.year);
-      setTracks(p.tracks);
+      // XHR (not fetch) so we can report real upload progress for large files.
+      const data = await new Promise<ParsedUpload>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", "/api/upload");
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) setUploadPct(Math.round((e.loaded / e.total) * 100));
+        };
+        xhr.onload = () => {
+          let body: { error?: string } & ParsedUpload;
+          try {
+            body = JSON.parse(xhr.responseText);
+          } catch {
+            return reject(new Error(`Upload failed (${xhr.status})`));
+          }
+          if (xhr.status >= 200 && xhr.status < 300) resolve(body);
+          else reject(new Error(body.error ?? "Upload failed"));
+        };
+        xhr.onerror = () => reject(new Error("Network error during upload"));
+        xhr.send(fd);
+      });
+      setParsed(data);
+      setArtist(data.artist);
+      setAlbum(data.album);
+      setYear(data.year);
+      setTracks(data.tracks);
       setStep("review");
     } catch (e) {
       setError((e as Error).message);
@@ -102,11 +136,55 @@ export function Ingest() {
   const updateTrack = (i: number, patch: Partial<ParsedTrack>) =>
     setTracks((ts) => ts.map((t, idx) => (idx === i ? { ...t, ...patch } : t)));
 
+  const removeTrack = (i: number) => setTracks((ts) => ts.filter((_, idx) => idx !== i));
+
+  const moveTrack = (i: number, dir: -1 | 1) =>
+    setTracks((ts) => {
+      const j = i + dir;
+      if (j < 0 || j >= ts.length) return ts;
+      const next = [...ts];
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
+
+  // ── Validation ──
+  const blockingIssues: string[] = [];
+  const warnIssues: string[] = [];
+  if (tracks.some((t) => !t.title.trim())) blockingIssues.push("Every track needs a title.");
+  const dupKeys = new Map<string, number>();
+  for (const t of tracks) {
+    if (t.track > 0) {
+      const k = `${t.disc}:${t.track}`;
+      dupKeys.set(k, (dupKeys.get(k) ?? 0) + 1);
+    }
+  }
+  if ([...dupKeys.values()].some((n) => n > 1)) blockingIssues.push("Duplicate track numbers (same disc).");
+  const yearNum = Number(year);
+  if (year && (yearNum < 1000 || yearNum > new Date().getFullYear() + 1)) {
+    warnIssues.push(`Year ${year} looks off.`);
+  }
+  if (tracks.some((t) => t.track === 0)) warnIssues.push("Some tracks have no number (will use list order).");
+
   const canSubmit =
     artist.trim().length > 0 &&
     album.trim().length > 0 &&
     tracks.length > 0 &&
+    blockingIssues.length === 0 &&
     (mode === "library" || selectedArtist !== null);
+
+  const replaceCover = async (file: File) => {
+    if (!parsed) return;
+    const fd = new FormData();
+    fd.append("file", file);
+    try {
+      const res = await fetch(`/api/staging/${parsed.stagingId}/cover`, { method: "POST", body: fd });
+      if (!res.ok) throw new Error("cover upload failed");
+      setParsed({ ...parsed, cover: true });
+      setCoverBust((n) => n + 1);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
 
   // ── DONE ──
   if (step === "done" && result) {
@@ -161,24 +239,36 @@ export function Ingest() {
           }}
         >
           {step === "uploading" ? (
-            <>
-              <SpinnerIcon className="mb-4 h-8 w-8 text-violet-400" />
-              <p className="text-sm text-zinc-400">Reading tags…</p>
-            </>
+            <div className="w-full max-w-xs" role="status" aria-live="polite">
+              <SpinnerIcon className="mx-auto mb-4 h-8 w-8 text-violet-400" />
+              {uploadPct < 100 ? (
+                <>
+                  <p className="text-sm text-zinc-400">Uploading… {uploadPct}%</p>
+                  <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className="h-full rounded-full bg-violet-500 transition-[width] duration-150"
+                      style={{ width: `${uploadPct}%` }}
+                    />
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-zinc-400">Reading tags…</p>
+              )}
+            </div>
           ) : (
             <>
               <span className="mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-[rgba(139,92,246,0.12)] text-violet-300">
                 <UploadIcon className="h-6 w-6" />
               </span>
-              <p className="text-base font-medium">Drop an album or single here</p>
-              <p className="mt-1 text-sm text-zinc-500">FLAC, MP3, M4A, OGG, Opus… — or click to browse</p>
+              <p className="text-base font-medium">Drop an album, single, or .zip here</p>
+              <p className="mt-1 text-sm text-zinc-500">FLAC, MP3, M4A, OGG, Opus, or a ZIP (auto-unpacked) — or click to browse</p>
             </>
           )}
           <input
             ref={inputRef}
             type="file"
             multiple
-            accept="audio/*,.flac,.m4a,.opus,.aiff,.alac"
+            accept="audio/*,.flac,.m4a,.opus,.aiff,.alac,.zip,application/zip"
             className="hidden"
             onChange={(e) => e.target.files && upload(e.target.files)}
           />
@@ -201,8 +291,13 @@ export function Ingest() {
             {tracks.length} track(s) · {fmtBytes(parsed?.totalBytes ?? 0)}
           </p>
         </div>
-        <button className="btn btn-ghost px-3 py-1.5 text-xs" onClick={reset} disabled={step === "ingesting"}>
-          discard
+        <button
+          className={`btn px-3 py-1.5 text-xs ${confirmDiscard ? "btn-primary" : "btn-ghost"}`}
+          onClick={() => (confirmDiscard ? reset() : setConfirmDiscard(true))}
+          onBlur={() => setConfirmDiscard(false)}
+          disabled={step === "ingesting"}
+        >
+          {confirmDiscard ? "discard?" : "discard"}
         </button>
       </div>
 
@@ -225,6 +320,44 @@ export function Ingest() {
         </Field>
       </div>
 
+      {/* cover */}
+      <div className="mt-5">
+        <Label>Cover</Label>
+        <div className="mt-1.5 flex items-center gap-3">
+          <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-lg border border-white/10 bg-white/[0.02] text-zinc-600">
+            {parsed?.cover ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={`/api/staging/${parsed.stagingId}/cover?v=${coverBust}`}
+                alt="album cover"
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <ImageIcon className="h-6 w-6" />
+            )}
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs text-zinc-500">
+              {parsed?.cover ? "Embedded art will be saved as cover." : "No cover found."}
+            </p>
+            <button
+              type="button"
+              className="btn btn-ghost mt-1.5 px-3 py-1.5 text-xs"
+              onClick={() => coverInputRef.current?.click()}
+            >
+              {parsed?.cover ? "Replace cover" : "Add cover"}
+            </button>
+            <input
+              ref={coverInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => e.target.files?.[0] && replaceCover(e.target.files[0])}
+            />
+          </div>
+        </div>
+      </div>
+
       {/* mode */}
       <div className="mt-5">
         <Label>Destination</Label>
@@ -237,7 +370,10 @@ export function Ingest() {
           </button>
           <button
             className={`seg-btn px-3 py-2 ${mode === "library" ? "seg-btn-active" : ""}`}
-            onClick={() => setMode("library")}
+            onClick={() => {
+              setMode("library");
+              setSelectedArtist(null);
+            }}
           >
             Library only (non-MB)
           </button>
@@ -260,26 +396,66 @@ export function Ingest() {
         <Label>Tracks</Label>
         <div className="scrollbar-styled mt-1.5 max-h-72 space-y-1 overflow-y-auto pr-1">
           {tracks.map((t, i) => (
-            <div key={t.file} className="flex items-center gap-2 rounded-lg bg-white/[0.02] px-2 py-1.5">
+            <div key={t.file} className="flex items-center gap-1.5 rounded-lg bg-white/[0.02] px-2 py-1.5">
+              <div className="flex shrink-0 flex-col">
+                <button
+                  type="button"
+                  aria-label="move up"
+                  disabled={i === 0}
+                  className="text-zinc-500 hover:text-zinc-200 disabled:opacity-25"
+                  onClick={() => moveTrack(i, -1)}
+                >
+                  <ChevronUpIcon className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  aria-label="move down"
+                  disabled={i === tracks.length - 1}
+                  className="text-zinc-500 hover:text-zinc-200 disabled:opacity-25"
+                  onClick={() => moveTrack(i, 1)}
+                >
+                  <ChevronDownIcon className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <input
+                className="input-glass w-10 shrink-0 px-1.5 py-1.5 text-center text-xs"
+                aria-label="disc number"
+                title="disc"
+                value={t.disc || ""}
+                placeholder="–"
+                onChange={(e) => updateTrack(i, { disc: Number(e.target.value.replace(/\D/g, "")) || 0 })}
+              />
               <input
                 className="input-glass w-12 shrink-0 px-2 py-1.5 text-center text-xs"
+                aria-label="track number"
                 value={t.track || ""}
                 placeholder={String(i + 1)}
                 onChange={(e) => updateTrack(i, { track: Number(e.target.value.replace(/\D/g, "")) || 0 })}
               />
               <input
-                className="input-glass min-w-0 flex-1 px-2 py-1.5 text-sm"
+                className={`input-glass min-w-0 flex-1 px-2 py-1.5 text-sm ${
+                  t.title.trim() ? "" : "border-red-500/40"
+                }`}
+                aria-label="track title"
                 value={t.title}
                 onChange={(e) => updateTrack(i, { title: e.target.value })}
               />
               <span className="hidden w-12 shrink-0 text-right text-xs tabular-nums text-zinc-500 sm:block">
                 {fmtDur(t.durationSec)}
               </span>
-              <span className="hidden max-w-[120px] shrink-0 truncate text-right font-mono text-[10px] text-zinc-600 md:block">
-                {t.file}
-              </span>
+              <button
+                type="button"
+                aria-label="remove track"
+                className="shrink-0 text-zinc-600 hover:text-red-400"
+                onClick={() => removeTrack(i)}
+              >
+                <XIcon className="h-4 w-4" />
+              </button>
             </div>
           ))}
+          {tracks.length === 0 && (
+            <p className="px-2 py-3 text-xs text-zinc-500">All tracks removed — discard and start over.</p>
+          )}
         </div>
       </div>
 
@@ -292,10 +468,31 @@ export function Ingest() {
           onChange={(e) => setWriteTags(e.target.checked)}
         />
         <span>
-          Rewrite FLAC tags from the fields above
-          <span className="block text-xs text-zinc-500">Requires the `flac` (metaflac) tool. Off = keep embedded tags as-is.</span>
+          Rewrite tags from the fields above
+          <span className="block text-xs text-zinc-500">
+            FLAC via `metaflac`, other formats via `ffmpeg` (no re-encode). Off = keep embedded tags as-is.
+          </span>
         </span>
       </label>
+
+      {(blockingIssues.length > 0 || warnIssues.length > 0) && (
+        <div className="mt-4 space-y-2">
+          {blockingIssues.length > 0 && (
+            <div className="rounded-xl border border-red-500/25 bg-red-500/5 p-3 text-xs text-red-300">
+              {blockingIssues.map((m, i) => (
+                <div key={i}>• {m}</div>
+              ))}
+            </div>
+          )}
+          {warnIssues.length > 0 && (
+            <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-300/90">
+              {warnIssues.map((m, i) => (
+                <div key={i}>• {m}</div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {error && <ErrorBox msg={error} onClose={() => setError(null)} />}
 

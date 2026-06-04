@@ -17,6 +17,7 @@ export function ArtistSearch({
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hi, setHi] = useState(0);
   const boxRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -35,6 +36,7 @@ export function ArtistSearch({
         const data = await res.json();
         if (data.error) setError(data.error);
         setResults(data.results ?? []);
+        setHi(0);
         setOpen(true);
       } catch (e) {
         if ((e as Error).name !== "AbortError") setError((e as Error).message);
@@ -78,6 +80,30 @@ export function ArtistSearch({
     );
   }
 
+  const choose = (r: LidarrArtistMatch) => {
+    onSelect(r);
+    setOpen(false);
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Escape") {
+      setOpen(false);
+      return;
+    }
+    if (!open || results.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHi((h) => Math.min(h + 1, results.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHi((h) => Math.max(h - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const r = results[hi];
+      if (r) choose(r);
+    }
+  };
+
   return (
     <div ref={boxRef} className="relative">
       <div className="relative">
@@ -88,21 +114,34 @@ export function ArtistSearch({
           value={term}
           onChange={(e) => setTerm(e.target.value)}
           onFocus={() => results.length && setOpen(true)}
+          onKeyDown={onKeyDown}
+          role="combobox"
+          aria-expanded={open && results.length > 0}
+          aria-controls="artist-listbox"
+          aria-autocomplete="list"
+          aria-activedescendant={open && results[hi] ? `artist-opt-${hi}` : undefined}
         />
         {loading && <SpinnerIcon className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />}
       </div>
 
       {open && (results.length > 0 || error) && (
-        <div className="scrollbar-styled glass-card absolute z-20 mt-2 max-h-72 w-full overflow-y-auto p-1.5">
+        <div
+          id="artist-listbox"
+          role="listbox"
+          className="scrollbar-styled popover-solid absolute z-20 mt-2 max-h-72 w-full overflow-y-auto p-1.5"
+        >
           {error && <div className="px-3 py-2 text-xs text-red-400">{error}</div>}
           {results.map((r, i) => (
             <button
               key={`${r.foreignArtistId ?? r.artistName}-${i}`}
-              className="glass-card-hover flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-left"
-              onClick={() => {
-                onSelect(r);
-                setOpen(false);
-              }}
+              id={`artist-opt-${i}`}
+              role="option"
+              aria-selected={i === hi}
+              className={`popover-item flex w-full items-center justify-between gap-2 rounded-xl border border-transparent px-3 py-2 text-left ${
+                i === hi ? "bg-[rgba(139,92,246,0.16)]" : ""
+              }`}
+              onMouseEnter={() => setHi(i)}
+              onClick={() => choose(r)}
             >
               <span className="min-w-0">
                 <span className="block truncate text-sm">{r.artistName}</span>

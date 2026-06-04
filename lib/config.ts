@@ -24,6 +24,8 @@ export const config = {
     staging: process.env.STAGING_PATH ?? "/staging",
     albumFolderFormat: process.env.ALBUM_FOLDER_FORMAT ?? "({year}) {album}",
     trackFileFormat: process.env.TRACK_FILE_FORMAT ?? "{track} {title}.{ext}",
+    /** stale staging dirs older than this are swept on upload */
+    stagingTtlHours: Number(process.env.STAGING_TTL_HOURS ?? "24") || 24,
   },
   navidrome: {
     url: (process.env.NAVIDROME_URL ?? "").replace(/\/+$/, ""),

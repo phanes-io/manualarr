@@ -21,6 +21,8 @@ export type ParsedUpload = {
   tracks: ParsedTrack[];
   /** sum of file sizes in bytes */
   totalBytes: number;
+  /** true if a cover image was found (embedded, loose, or in the zip) */
+  cover: boolean;
 };
 
 export type LidarrArtistMatch = {
