@@ -38,6 +38,20 @@ body {
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
 }
 
+/* Opaque floating surface — use for dropdowns/popovers so content stays readable
+   over whatever is behind them (glass-card alone is near-transparent). */
+.popover-solid {
+  background: #18181b;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+}
+.popover-item { transition: background 0.15s, border-color 0.15s; }
+.popover-item:hover {
+  background: rgba(139, 92, 246, 0.16);
+  border-color: rgba(139, 92, 246, 0.35);
+}
+
 /* ── Drop zone ── */
 .drop-zone {
   border: 1.5px dashed rgba(255, 255, 255, 0.10);
