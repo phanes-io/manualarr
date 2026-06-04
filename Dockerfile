@@ -24,8 +24,10 @@ ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0 \
     MUSIC_LIBRARY_PATH=/music \
     STAGING_PATH=/staging
-# metaflac (package: flac) powers the optional FLAC tag-rewrite feature.
-RUN apk add --no-cache flac
+# metaflac (package: flac) rewrites FLAC tags; ffmpeg rewrites tags for all other
+# formats and is otherwise used for container metadata edits. Both are optional —
+# the app degrades gracefully if absent.
+RUN apk add --no-cache flac ffmpeg
 COPY --from=build /app/public ./public
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static

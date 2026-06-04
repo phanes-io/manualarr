@@ -2,8 +2,8 @@ import "server-only";
 import { mkdir, copyFile, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { config } from "./config";
-import { stagingDir, sanitizeFilename } from "./staging";
-import { writeFlacTags } from "./metadata";
+import { stagingDir, sanitizeFilename, findCover } from "./staging";
+import { writeAudioTags } from "./metadata";
 import type { ParsedTrack } from "./types";
 
 /** Sanitize a path *segment* (artist or album folder name). */
@@ -48,7 +48,7 @@ export type PlaceArgs = {
   writeTags: boolean;
 };
 
-export type PlaceResult = { dir: string; placed: number; warnings: string[] };
+export type PlaceResult = { dir: string; placed: number; placedCover: boolean; warnings: string[] };
 
 /**
  * Copy staged audio into the final library layout: <root>/<Artist>/<(Year) Album>/<NN Title.ext>.
@@ -74,7 +74,7 @@ export async function placeIntoLibrary(args: PlaceArgs): Promise<PlaceResult> {
     await copyFile(src, dest);
 
     if (args.writeTags) {
-      const w = await writeFlacTags(dest, {
+      const w = await writeAudioTags(dest, {
         artist: args.artist,
         albumArtist: args.albumArtist || args.artist,
         album: args.album,
@@ -88,7 +88,22 @@ export async function placeIntoLibrary(args: PlaceArgs): Promise<PlaceResult> {
     placed++;
   }
 
-  return { dir, placed, warnings };
+  // Drop a folder-level cover.<ext> alongside the tracks — Navidrome and Lidarr
+  // both pick up cover.* / folder.*, so non-MB albums get art too.
+  let placedCover = false;
+  if (placed > 0) {
+    const cover = await findCover(args.stagingId);
+    if (cover) {
+      try {
+        await copyFile(cover.path, join(dir, `cover.${cover.ext}`));
+        placedCover = true;
+      } catch (e) {
+        warnings.push(`cover: ${(e as Error).message}`);
+      }
+    }
+  }
+
+  return { dir, placed, placedCover, warnings };
 }
 
 /** Delete a previously-ingested album folder (used by an undo, not wired into MVP UI). */
