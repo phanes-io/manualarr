@@ -30,6 +30,7 @@ export function Ingest() {
   const [step, setStep] = useState<Step>("idle");
   const [parsed, setParsed] = useState<ParsedUpload | null>(null);
   const [artist, setArtist] = useState("");
+  const [albumArtist, setAlbumArtist] = useState("");
   const [album, setAlbum] = useState("");
   const [year, setYear] = useState("");
   const [tracks, setTracks] = useState<ParsedTrack[]>([]);
@@ -49,6 +50,7 @@ export function Ingest() {
     setStep("idle");
     setParsed(null);
     setArtist("");
+    setAlbumArtist("");
     setAlbum("");
     setYear("");
     setTracks([]);
@@ -93,6 +95,7 @@ export function Ingest() {
       });
       setParsed(data);
       setArtist(data.artist);
+      setAlbumArtist(data.albumArtist || data.artist);
       setAlbum(data.album);
       setYear(data.year);
       setTracks(data.tracks);
@@ -115,6 +118,7 @@ export function Ingest() {
           stagingId: parsed.stagingId,
           mode,
           artist: artist.trim(),
+          albumArtist: (albumArtist.trim() || artist.trim()),
           album: album.trim(),
           year: year.trim(),
           tracks,
@@ -302,10 +306,23 @@ export function Ingest() {
       </div>
 
       {/* album fields */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_120px]">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Album artist">
+          <input
+            className="input-glass w-full px-3 py-2 text-sm"
+            value={albumArtist}
+            placeholder={artist}
+            onChange={(e) => setAlbumArtist(e.target.value)}
+          />
+        </Field>
+        <Field label="Artist credit">
           <input className="input-glass w-full px-3 py-2 text-sm" value={artist} onChange={(e) => setArtist(e.target.value)} />
         </Field>
+      </div>
+      <p className="mt-1.5 text-xs text-zinc-500">
+        Album artist (lead) drives the folder &amp; grouping; the full credit (feat. …) is kept on each track.
+      </p>
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_120px]">
         <Field label="Album">
           <input className="input-glass w-full px-3 py-2 text-sm" value={album} onChange={(e) => setAlbum(e.target.value)} />
         </Field>
@@ -387,7 +404,7 @@ export function Ingest() {
 
       {mode === "lidarr" && (
         <div className="mt-3">
-          <ArtistSearch initialTerm={artist} selected={selectedArtist} onSelect={setSelectedArtist} />
+          <ArtistSearch initialTerm={albumArtist || artist} selected={selectedArtist} onSelect={setSelectedArtist} />
         </div>
       )}
 

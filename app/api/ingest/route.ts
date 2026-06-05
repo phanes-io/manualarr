@@ -12,6 +12,7 @@ export const maxDuration = 300;
 const trackSchema = z.object({
   file: z.string().min(1),
   title: z.string(),
+  artist: z.string().default(""),
   track: z.number().int().min(0),
   disc: z.number().int().min(0),
   durationSec: z.number().nullable(),
@@ -22,6 +23,8 @@ const bodySchema = z.object({
   stagingId: z.string().uuid(),
   mode: z.enum(["lidarr", "library"]),
   artist: z.string().min(1),
+  // Lead artist for folder + ALBUMARTIST; falls back to `artist` if omitted.
+  albumArtist: z.string().default(""),
   album: z.string().min(1),
   year: z.string().regex(/^\d{0,4}$/),
   tracks: z.array(trackSchema).min(1),
@@ -45,7 +48,7 @@ export async function POST(req: NextRequest) {
       artist: body.artist,
       album: body.album,
       year: body.year,
-      albumArtist: body.artist,
+      albumArtist: body.albumArtist || body.artist,
       tracks: body.tracks,
       writeTags: body.writeTags,
     });
