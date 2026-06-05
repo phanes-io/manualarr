@@ -34,8 +34,9 @@ export function trackFileName(t: ParsedTrack, fallbackIndex: number): string {
   return sanitizeFilename(name);
 }
 
-export function targetDir(artist: string, album: string, year: string): string {
-  return join(config.library.root, seg(artist), albumFolderName(album, year));
+/** Library folder groups by album artist (lead), matching how Navidrome/Lidarr sort. */
+export function targetDir(albumArtist: string, album: string, year: string): string {
+  return join(config.library.root, seg(albumArtist), albumFolderName(album, year));
 }
 
 export type PlaceArgs = {
@@ -55,7 +56,7 @@ export type PlaceResult = { dir: string; placed: number; placedCover: boolean; w
  * Copy (not move) so a failure leaves staging intact for retry; staging is cleaned by the caller on success.
  */
 export async function placeIntoLibrary(args: PlaceArgs): Promise<PlaceResult> {
-  const dir = targetDir(args.artist, args.album, args.year);
+  const dir = targetDir(args.albumArtist || args.artist, args.album, args.year);
   await mkdir(dir, { recursive: true });
   const warnings: string[] = [];
   let placed = 0;
@@ -75,7 +76,9 @@ export async function placeIntoLibrary(args: PlaceArgs): Promise<PlaceResult> {
 
     if (args.writeTags) {
       const w = await writeAudioTags(dest, {
-        artist: args.artist,
+        // Per-track credit keeps each track's own feature line; album artist
+        // (lead) is uniform so the album doesn't split across artists.
+        artist: t.artist || args.artist,
         albumArtist: args.albumArtist || args.artist,
         album: args.album,
         year: args.year,

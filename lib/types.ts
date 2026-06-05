@@ -4,6 +4,8 @@ export type ParsedTrack = {
   /** staging-relative filename, used as the stable id for this file */
   file: string;
   title: string;
+  /** full per-track performer credit (ARTIST tag); may differ per track */
+  artist: string;
   /** 1-based track number; 0 if unknown */
   track: number;
   /** 1-based disc number; 0 if unknown */
@@ -14,7 +16,10 @@ export type ParsedTrack = {
 
 export type ParsedUpload = {
   stagingId: string;
+  /** full performer credit shown as the default track artist */
   artist: string;
+  /** lead artist used for the folder + ALBUMARTIST (derived, user-editable) */
+  albumArtist: string;
   album: string;
   /** 4-digit year or "" */
   year: string;
@@ -41,7 +46,10 @@ export type IngestMode = "lidarr" | "library";
 export type IngestRequest = {
   stagingId: string;
   mode: IngestMode;
+  /** full performer credit (per-track fallback for the ARTIST tag) */
   artist: string;
+  /** lead artist for the folder + ALBUMARTIST tag (uniform across the album) */
+  albumArtist: string;
   album: string;
   year: string;
   tracks: ParsedTrack[];

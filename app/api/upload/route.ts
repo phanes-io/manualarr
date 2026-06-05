@@ -3,6 +3,7 @@ import { saveUploads, listStaging, sweepStaging, writeCover } from "@/lib/stagin
 import { readTags, readEmbeddedCover } from "@/lib/metadata";
 import { coverExtFromMime } from "@/lib/staging";
 import { config } from "@/lib/config";
+import { primaryArtist } from "@/lib/artist";
 import type { ParsedTrack, ParsedUpload } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -45,12 +46,19 @@ export async function POST(req: NextRequest) {
 
     // Album-level fields: take the most common album/artist/year across tracks.
     const album = mode(tagged.map((t) => t.album).filter(Boolean));
-    const artist = mode(tagged.map((t) => t.albumArtist).filter(Boolean)) || mode(tagged.map((t) => t.artist).filter(Boolean));
+    // The credit shown to the user defaults to the most common track ARTIST.
+    const artist = mode(tagged.map((t) => t.artist).filter(Boolean)) || mode(tagged.map((t) => t.albumArtist).filter(Boolean));
+    // Album artist = lead performer, derived from the album's most common credit.
+    // Source ALBUMARTIST tags are often the full feature string (and can even
+    // differ per track), so we collapse to a single primary as the default.
+    const albumArtist =
+      primaryArtist(mode(tagged.map((t) => t.albumArtist).filter(Boolean)) || artist) || artist;
     const year = mode(tagged.map((t) => t.year).filter(Boolean));
 
     const tracks: ParsedTrack[] = tagged.map((t) => ({
       file: t.file,
       title: t.title,
+      artist: t.artist || artist,
       track: t.track,
       disc: t.disc,
       durationSec: t.durationSec,
@@ -59,7 +67,7 @@ export async function POST(req: NextRequest) {
 
     // Sum the staged files on disk — a zip's compressed size isn't the real total.
     const totalBytes = (await listStaging(id)).reduce((n, f) => n + f.bytes, 0);
-    const payload: ParsedUpload = { stagingId: id, artist, album, year, tracks, totalBytes, cover: hasCover };
+    const payload: ParsedUpload = { stagingId: id, artist, albumArtist, album, year, tracks, totalBytes, cover: hasCover };
     return NextResponse.json(payload);
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
